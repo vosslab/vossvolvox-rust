@@ -7,4 +7,5 @@ pub mod voxel_grid {
 	pub mod surface_area;
 	pub mod mrc_output;
 	pub mod pdb_output;
+	pub mod raster;
 }
