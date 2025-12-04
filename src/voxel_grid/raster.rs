@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::thread;
 
 use bitvec::vec::BitVec;
+use bitvec::slice::BitSlice;
 
 use crate::voxel_grid::grid::Grid3D;
 
@@ -35,7 +36,11 @@ impl Grid3D {
 		let z_shift = self.z_shift;
 
 		// Thread-friendly backing buffer; each cell is 0/1.
-		let backing = Arc::new(vec![AtomicU8::new(0); total_voxels]);
+		let backing: Arc<Vec<AtomicU8>> = Arc::new(
+			(0..total_voxels)
+				.map(|_| AtomicU8::new(0))
+				.collect(),
+		);
 
 		let threads = thread::available_parallelism()
 			.map(|n| n.get())
@@ -100,4 +105,130 @@ impl Grid3D {
 		self.data = bits;
 		filled
 	}
+
+	/// Contract accessible grid into excluded grid (trun_ExcludeGrid_fast analogue).
+	/// Uses the current grid occupancy as the accessible input and writes the contracted
+	/// grid back into `self.data`. Returns the number of filled voxels after contraction.
+	pub fn contract_exclusion_parallel(&mut self, probe: f32) -> usize {
+		let total_voxels = self.total_voxels;
+		let len_i = self.len_i;
+		let len_j = self.len_j;
+		let len_k = self.len_k;
+		let acc: &BitSlice = self.data.as_bitslice();
+
+		// Output buffer initialized from the accessible grid.
+		let backing: Arc<Vec<AtomicU8>> = Arc::new(
+			(0..total_voxels)
+				.map(|idx| {
+					if acc[idx] {
+						AtomicU8::new(1)
+					} else {
+						AtomicU8::new(0)
+					}
+				})
+				.collect(),
+		);
+
+		let radius_units = probe / self.grid_size;
+		let offsets = compute_offsets(radius_units, len_i, len_j);
+		let offsets_arc = Arc::new(offsets);
+
+		let threads = thread::available_parallelism()
+			.map(|n| n.get())
+			.unwrap_or(1);
+		let chunk = (total_voxels + threads - 1) / threads;
+
+		thread::scope(|scope| {
+			for (chunk_idx, range_start) in (0..total_voxels).step_by(chunk).enumerate() {
+				let data = Arc::clone(&backing);
+				let acc_ref = acc;
+				let offsets_ref = Arc::clone(&offsets_arc);
+				let start = range_start;
+				let end = ((chunk_idx + 1) * chunk).min(total_voxels);
+				scope.spawn(move || {
+					for idx in start..end {
+						// Skip if occupied in accessible grid.
+						if acc_ref[idx] {
+							continue;
+						}
+						if !has_filled_neighbor(idx, acc_ref, len_i, len_j, len_k) {
+							continue;
+						}
+						let center = idx as isize;
+						for &offset in offsets_ref.iter() {
+							let neighbor = center + offset;
+							if neighbor >= 0 && (neighbor as usize) < total_voxels {
+								data[neighbor as usize].store(0, Ordering::Relaxed);
+							}
+						}
+					}
+				});
+			}
+		});
+
+		let mut filled = 0usize;
+		let mut bits = BitVec::with_capacity(total_voxels);
+		for cell in backing.iter() {
+			let v = cell.load(Ordering::Relaxed) != 0;
+			if v {
+				filled += 1;
+			}
+			bits.push(v);
+		}
+		self.data = bits;
+		filled
+	}
+}
+
+fn has_filled_neighbor(idx: usize, acc: &BitSlice, len_i: usize, len_j: usize, len_k: usize) -> bool {
+	let stride_j = len_i;
+	let stride_k = len_i * len_j;
+	let i = idx % len_i;
+	let j = (idx / len_i) % len_j;
+	let k = idx / stride_k;
+
+	// +/- i
+	if i > 0 && acc[idx - 1] {
+		return true;
+	}
+	if i + 1 < len_i && acc[idx + 1] {
+		return true;
+	}
+	// +/- j
+	if j > 0 && acc[idx - stride_j] {
+		return true;
+	}
+	if j + 1 < len_j && acc[idx + stride_j] {
+		return true;
+	}
+	// +/- k
+	if k > 0 && acc[idx - stride_k] {
+		return true;
+	}
+	if k + 1 < len_k && acc[idx + stride_k] {
+		return true;
+	}
+	false
+}
+
+fn compute_offsets(radius_units: f32, len_i: usize, len_j: usize) -> Vec<isize> {
+	let mut offsets = Vec::new();
+	if radius_units <= 0.0 {
+		return offsets;
+	}
+	let cutoff = radius_units * radius_units;
+	let max_r = radius_units.ceil() as isize;
+	let stride_j = len_i as isize;
+	let stride_k = (len_i * len_j) as isize;
+	for di in -max_r..=max_r {
+		for dj in -max_r..=max_r {
+			for dk in -max_r..=max_r {
+				let dist2 = (di * di + dj * dj + dk * dk) as f32;
+				if dist2 < cutoff {
+					offsets.push(di + dj * stride_j + dk * stride_k);
+				}
+			}
+		}
+	}
+	offsets
 }
