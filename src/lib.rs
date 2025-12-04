@@ -6,6 +6,8 @@ pub mod voxel_grid {
 	pub mod analyze;
 	pub mod surface_area;
 	pub mod mrc_output;
-	pub mod pdb_output;
 	pub mod raster;
+	pub mod pdb;
+	pub mod geometry;
+	pub mod pdb_output;
 }
