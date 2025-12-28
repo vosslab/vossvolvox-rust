@@ -20,3 +20,9 @@ Mission: recreate the vossvolvox toolkit in Rust with output parity to the C++ r
 ## Reference
 - C++ source of truth: `vossvolvox-cpp/src/utils-main.cpp`, `volume.cpp`, related outputs.
 - Test expectations: `vossvolvox-cpp/test/test_suite.yml` (volumes, surfaces, PDB line counts/hashes).
+See Python coding style in docs/PYTHON_STYLE.md.
+## Coding Style
+See Markdown style in docs/MARKDOWN_STYLE.md.
+When making edits, document them in docs/CHANGELOG.md.
+See repo style in docs/REPO_STYLE.md.
+Agents may run programs in the tests folder, including smoke tests and pyflakes/mypy runner scripts.
