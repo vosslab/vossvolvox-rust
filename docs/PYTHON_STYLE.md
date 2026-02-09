@@ -6,6 +6,12 @@ Language Model guide to Neil python3 programming
 
 * I like using one of the latest versions of python, but not the latest, of python3, currently **3.12**.
 
+## FILENAMES
+* Prefer snake_case for Python filenames and module names.
+* Avoid CamelCase in filenames. Reserve CamelCase for class names.
+* Keep filenames descriptive, and consistent with the primary thing the file provides.
+* Use only lowercase letters, numbers, and underscores in filenames.
+
 ## USE TABS
 
 * Always use tabs for indentation in python3 code, never spaces!
@@ -17,13 +23,19 @@ Language Model guide to Neil python3 programming
 
 - Use a `def main()` for the backbone of the code, have a `if __name__ == '__main__': main()` to run main
 - I prefer single task sub-functions over one large function.
+- `args` is reserved for the `argparse.Namespace` returned by `parse_args()`; do not attach derived runtime state to `args` (use local variables, module-level caches, or explicit parameters instead).
+- Prefer to avoid module-level global state; when a generator needs expensive precomputed data (lists, parsed files) and the framework requires `write_question(N, args)`, it is acceptable to cache that data in a module-level constant-like variable (ALL_CAPS) initialized in `main()` and treated as read-only during question generation.
 - Whenever making a URL or API internet request, add a time.sleep(random.random()) to avoid overloading the server, unless the official API specifies otherwise.
 - For error handling, avoid try/except block if you can, I find they cause more problems than they solve.
 - Use try/except rarely, and if needed use for at most two lines
 - Avoid using `sys.exit(1)` prefer to raise Errors.
 - Use f-strings, in older code I used `.format()` or `'%'` system, update to f-strings.
 - I prefer string concatenation `'+='` over multiline strings.
-- Start off python3 programs with the line `#!/usr/bin/env python3` to make them executable
+- If a Python script is intended to be executed as a program, the first line must be:
+	- `#!/usr/bin/env python3`
+- Do not hard-code interpreter paths in shebangs (bad: `#!/opt/homebrew/.../python3.12`).
+- Do not use `/usr/bin/python` or `/usr/bin/python3` in shebangs.
+- The shebang must be the first line of the file. The module docstring comes after it.
 - Return statements should be simple and should not perform calculations, fill out a dict, or build strings. Store computed values and assembled strings in variables first, including any multiline HTML or text, then return the variable.
 - add comments within the code to describe what different lines are doing, to make for better readability later. especially for complex lines!
 - Please only use ascii characters in the script, if utf characters are need they should be escape e.g. `&alpha;` `&lrarr;`
@@ -34,6 +46,26 @@ Language Model guide to Neil python3 programming
 * Use double quotes on the outside with single quotes inside.
 * Or use single quotes on the outside with double quotes inside.
 * This is especially useful for HTML like "<span style='...'>text</span>".
+
+## LAMBDA FUNCTIONS
+* Be conservative with lambda. Prefer def for anything more than a simple key or one-liner callback.
+* lambda is allowed when used as key= for sorted(), .sort(), min(), or max() and the expression is short and obvious.
+* Avoid lambda bodies that call major helper functions or hide important logic. If the lambda is doing real work, name it with def so it is readable, commentable, and testable.
+* If the lambda expression would be hard to understand without a comment, replace it with a named function.
+
+Allowed:
+gel_set = sorted(gel_set, key=lambda k: k["MW"])
+i = max(range(n), key=lambda k: values[k])
+villages_sorted = sorted(villages, key=lambda v: totals[v])
+
+Avoid:
+choices = sorted(choices, key=lambda k: -compare_sequence(k, consensus_sequence))
+
+Preferred rewrite:
+def score_choice(choice: str) -> int:
+score = -compare_sequence(choice, consensus_sequence)
+return score
+choices = sorted(choices, key=score_choice)
 
 ## HTML UNITS IN MONOSPACE
 * When generating HTML for lab problems, render numeric values and their units in monospace for readability and alignment.
@@ -46,19 +78,10 @@ volume_text = f"<span style='font-family: monospace;'>{vol1:.1f} mL</span>"
 - I like to test the code with **pyflakes** and **mypy**
 - For simple functions only, provide an **assert** command.
 - create a folder in most projects called tests for storing test scripts
-- a good test script is run_pyflakes.sh
+- a good repo-wide pyflakes gate is `tests/test_pyflakes.py` (run with pytest)
 ```bash
-#!/usr/bin/env bash
-set -euo pipefail
-cd "${PYTHON_ROOT}"
-pyflakes $(find "${PYTHON_ROOT}" -type f -name "*.py" -print) > pyflakes.txt 2>&1 || true
-RESULT=$(wc -l < pyflakes.txt)
-if [ "${RESULT}" -eq 0 ]; then
-	echo "No errors found!!!"
-	exit 0
-fi
-echo "Found ${RESULT} pyflakes errors"
-exit 1
+python3 -m pytest tests/test_pyflakes.py
+/opt/homebrew/opt/python@3.12/bin/python3.12 -m pytest tests/test_pyflakes.py
 ```
 
 ## DO NOT USE HEREDOCS
@@ -92,6 +115,15 @@ debug_mode = os.environ.get("DEBUG_MODE") == "true"
 ```
 
 For api keys, mode settings, or temp variables use argparse, config files, or function arguments instead. Rule of thumb: If a variable exists only because the script exists, it does not belong in the environment.
+
+### Shell defaults
+
+When running Python scripts locally, export these to get unbuffered output and to avoid writing `.pyc` / `__pycache__` garbage files (scripts must still work without them):
+
+```bash
+export PYTHONUNBUFFERED=1
+export PYTHONDONTWRITEBYTECODE=1
+```
 
 ## COMMENTING
 
@@ -133,6 +165,19 @@ result = make_key({'ID': 12, 'Name': 'JoHN  '}, ('ID', 'Name'))
 assert result == '12 john'
 ```
 
+## PYTEST
+* Prefer pytest for automated tests when a repo has more than a few simple asserts.
+* Store tests in tests/ with files named test_*.py.
+* Test functions should be named test_* and should use plain assert.
+* Keep tests small and deterministic. Avoid network calls, random behavior, and time based logic unless mocked.
+* Prefer fixtures for setup and shared resources. Use built in fixtures like tmp_path instead of custom temp directories.
+* Avoid complex logic inside tests. If test logic needs comments, move the logic into helper functions and test those helpers.
+* Basic commands:
+* pytest run all tests
+* pytest -q quiet
+* pytest -k name run tests matching a substring
+* pytest -x stop on first failure
+
 ## TYPE HINTING
 * Use the python3-style explicit variable type hinting. I think it is good practice. Very little of my code uses it now, but I want to change that. For example,
 ```python
@@ -168,7 +213,39 @@ import aminoacidlib
 ```
 
 ## ARGPARSE
-* Always provide argparse for inputs and outputs and any variables to adjusted.
+
+### ARGPARSE MINIMALISM
+
+Be conservative. Only add arguments users frequently need to change between runs.
+
+**Good candidates:**
+- Input/output file paths
+- Mode switches (--dry-run, --verbose, --format)
+- Behavior toggles (--recursive, --force)
+
+**Hardcode instead:**
+- Backup suffixes, timeout durations, buffer sizes
+- Retry counts, column widths, formatting details
+- Any "what if someone wants to..." parameters
+
+**Rule:** If you added it thinking "someone might want to configure this", remove it.
+
+#### Over-engineered (bad):
+```python
+parser.add_argument('-t', '--timeout', type=int, default=30)
+parser.add_argument('-r', '--retries', type=int, default=3)
+parser.add_argument('-s', '--suffix', default='.bak')
+```
+
+#### Minimal (good):
+```python
+parser.add_argument('-i', '--input', dest='input_file', required=True)
+parser.add_argument('-o', '--output', dest='output_file', required=True)
+parser.add_argument('-n', '--dry-run', dest='dry_run', action='store_true')
+```
+
+### ARGPARSE DETAILS
+
 * Argparse value should have both a single letter cli flag and a full word cli flag. You should always specify the destination for the value, dest='flag_name'. See example below.
 * When doing an argparse boolean value. Provide both on and off flags and set the default with a different command, For example,
 ```python
@@ -244,6 +321,7 @@ pyexiftool  # Python wrapper for exiftool metadata extraction and editing
 pyflakes  # Static analysis to find unused imports and simple errors
 pygame  # SDL based multimedia and simple game framework
 pytesseract  # Python wrapper for Tesseract OCR
+pytest
 python-bricklink-api  # BrickLink API client for LEGO parts and orders
 pyyaml  # YAML parsing and serialization
 qrcode  # QR code generation
