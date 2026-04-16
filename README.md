@@ -17,7 +17,7 @@ Rust reimplementation of the vossvolvox toolkit, targeting output parity with th
 cargo build
 ```
 
-Once the Volume clone lands, you’ll be able to run:
+Once the Volume clone lands, you'll be able to run:
 ```
 cargo run --bin volume -- --help
 ```

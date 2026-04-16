@@ -14,7 +14,7 @@
 - **(planned) cli binaries**: `src/bin/volume.rs` first, matching `Volume.exe` flags and output formatting.
 
 ## Data flow (Volume clone)
-1. Parse PDB → atoms with radii (filters applied).
+1. Parse PDB -> atoms with radii (filters applied).
 2. Compute bounds, pad by `MAXVDW + probe + 2*grid` and probe-derived safety margin; align dims to multiples of 4; record origin shifts.
 3. Allocate `Grid3D` with derived dims; fill accessible grid by rasterizing spheres.
 4. If probe > 0, contract to excluded volume using neighbor checks + precomputed offsets; otherwise keep accessible grid.

@@ -16,7 +16,7 @@
 - Ship `src/bin/volume.rs` with flags matching `Volume.exe`.
 
 ### 2) VolumeNoCav.exe and VDW.exe
-- Add cavity filling and “probe=0 accessible” paths on top of shared grid ops.
+- Add cavity filling and "probe=0 accessible" paths on top of shared grid ops.
 - Validate against test suite PDB hashes/line counts.
 
 ### 3) Channel/Cavities/Solvent
